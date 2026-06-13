@@ -1,0 +1,24 @@
+# AlphaLens — Literature Agent Requirements
+# Install with: pip install -r requirements_literature.txt
+
+# PDF Extraction
+pymupdf>=1.23
+pypdf>=3.0
+fpdf>=1.7.2          # for test PDF generation
+
+# Text Splitting
+langchain>=0.2
+langchain-community>=0.2
+
+# Embeddings & Reranking
+sentence-transformers>=2.6
+
+# Vector Store
+chromadb>=0.5
+
+# LLM API
+anthropic>=0.30
+
+# Testing
+pytest>=8.0
+pytest-mock>=3.12
