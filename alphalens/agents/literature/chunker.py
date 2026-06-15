@@ -6,7 +6,8 @@ Success criteria: each chunk <= 512 tokens, overlap = 64 tokens,
 chunk metadata retains source filename.
 """
 
-from langchain_community.text_splitters import RecursiveCharacterTextSplitter
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import List, Dict
 
 CHUNK_SIZE = 512    # tokens
