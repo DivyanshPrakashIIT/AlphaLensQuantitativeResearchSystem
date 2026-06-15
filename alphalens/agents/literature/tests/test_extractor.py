@@ -49,6 +49,14 @@ def _valid_fact_response():
     return json.dumps(facts)
 
 
+def _make_mock_groq_response(text):
+    """Build a mock that mimics groq client.chat.completions.create() response."""
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = text
+    return mock_response
+
+
 # ── Prompt Tests ──────────────────────────────────────────────────────────────
 
 class TestBuildExtractionPrompt:
@@ -70,79 +78,69 @@ class TestBuildExtractionPrompt:
 # ── Extractor Tests ───────────────────────────────────────────────────────────
 
 class TestExtractFactsFromChunks:
-    @patch("agents.literature.extractor.anthropic.Anthropic")
-    def test_returns_list(self, mock_anthropic_cls):
-        mock_client = MagicMock()
-        mock_anthropic_cls.return_value = mock_client
-        mock_msg = MagicMock()
-        mock_msg.content = [MagicMock(text=_valid_fact_response())]
-        mock_client.messages.create.return_value = mock_msg
 
-        chunks = _make_chunks(2)
-        result = extract_facts_from_chunks(chunks)
+    @patch("agents.literature.extractor.Groq")
+    def test_returns_list(self, mock_groq_cls):
+        mock_client = MagicMock()
+        mock_groq_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = \
+            _make_mock_groq_response(_valid_fact_response())
+
+        result = extract_facts_from_chunks(_make_chunks(2))
         assert isinstance(result, list)
 
-    @patch("agents.literature.extractor.anthropic.Anthropic")
-    def test_source_chunk_id_attached(self, mock_anthropic_cls):
+    @patch("agents.literature.extractor.Groq")
+    def test_source_chunk_id_attached(self, mock_groq_cls):
         mock_client = MagicMock()
-        mock_anthropic_cls.return_value = mock_client
-        mock_msg = MagicMock()
-        mock_msg.content = [MagicMock(text=_valid_fact_response())]
-        mock_client.messages.create.return_value = mock_msg
+        mock_groq_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = \
+            _make_mock_groq_response(_valid_fact_response())
 
-        chunks = _make_chunks(1)
-        result = extract_facts_from_chunks(chunks)
+        result = extract_facts_from_chunks(_make_chunks(1))
         assert len(result) >= 1
         for fact in result:
             assert "source_chunk_id" in fact
 
-    @patch("agents.literature.extractor.anthropic.Anthropic")
-    def test_invalid_json_skipped_gracefully(self, mock_anthropic_cls):
+    @patch("agents.literature.extractor.Groq")
+    def test_invalid_json_skipped_gracefully(self, mock_groq_cls):
         mock_client = MagicMock()
-        mock_anthropic_cls.return_value = mock_client
+        mock_groq_cls.return_value = mock_client
 
         # First chunk returns invalid JSON, second valid
-        mock_msg_bad = MagicMock()
-        mock_msg_bad.content = [MagicMock(text="Not valid JSON at all!!!")]
-        mock_msg_good = MagicMock()
-        mock_msg_good.content = [MagicMock(text=_valid_fact_response())]
-        mock_client.messages.create.side_effect = [mock_msg_bad, mock_msg_good]
+        mock_client.chat.completions.create.side_effect = [
+            _make_mock_groq_response("Not valid JSON at all!!!"),
+            _make_mock_groq_response(_valid_fact_response()),
+        ]
 
-        chunks = _make_chunks(2)
-        result = extract_facts_from_chunks(chunks)
-        # Should still get facts from the second chunk
+        result = extract_facts_from_chunks(_make_chunks(2))
         assert isinstance(result, list)
         assert len(result) >= 1
 
-    @patch("agents.literature.extractor.anthropic.Anthropic")
-    def test_fact_has_signal_name_key(self, mock_anthropic_cls):
+    @patch("agents.literature.extractor.Groq")
+    def test_fact_has_signal_name_key(self, mock_groq_cls):
         mock_client = MagicMock()
-        mock_anthropic_cls.return_value = mock_client
-        mock_msg = MagicMock()
-        mock_msg.content = [MagicMock(text=_valid_fact_response())]
-        mock_client.messages.create.return_value = mock_msg
+        mock_groq_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = \
+            _make_mock_groq_response(_valid_fact_response())
 
-        chunks = _make_chunks(1)
-        result = extract_facts_from_chunks(chunks)
+        result = extract_facts_from_chunks(_make_chunks(1))
         for fact in result:
             assert "signal_name" in fact
 
-    @patch("agents.literature.extractor.anthropic.Anthropic")
-    def test_markdown_fence_stripped(self, mock_anthropic_cls):
+    @patch("agents.literature.extractor.Groq")
+    def test_markdown_fence_stripped(self, mock_groq_cls):
         """LLM occasionally wraps JSON in ```json ... ``` — must be stripped."""
         mock_client = MagicMock()
-        mock_anthropic_cls.return_value = mock_client
-        mock_msg = MagicMock()
+        mock_groq_cls.return_value = mock_client
         fenced = f"```json\n{_valid_fact_response()}\n```"
-        mock_msg.content = [MagicMock(text=fenced)]
-        mock_client.messages.create.return_value = mock_msg
+        mock_client.chat.completions.create.return_value = \
+            _make_mock_groq_response(fenced)
 
-        chunks = _make_chunks(1)
-        result = extract_facts_from_chunks(chunks)
+        result = extract_facts_from_chunks(_make_chunks(1))
         assert len(result) >= 1
 
-    @patch("agents.literature.extractor.anthropic.Anthropic")
-    def test_empty_chunk_list_returns_empty(self, mock_anthropic_cls):
+    @patch("agents.literature.extractor.Groq")
+    def test_empty_chunk_list_returns_empty(self, mock_groq_cls):
         result = extract_facts_from_chunks([])
         assert result == []
 
