@@ -1,41 +1,44 @@
 """
 extractor.py
 JSON Fact Extractor — AlphaLens Literature Agent
-Calls Claude (claude-sonnet-4-6) on each retrieved chunk to extract
-structured quantitative facts. Logs failures but continues processing.
+Uses Groq (free) with llama-3.3-70b for structured fact extraction.
+Logs failures but continues processing.
 """
 
 import json
 import os
 from typing import List, Dict
 
-import anthropic
+from groq import Groq
 from .prompts import build_extraction_prompt
 
 
 def extract_facts_from_chunks(
     chunks: List[Dict],
-    model: str = "claude-sonnet-4-6",
+    model: str = "llama-3.3-70b-versatile",
 ) -> List[Dict]:
     """
-    For each retrieved chunk, call the LLM and extract structured facts.
+    For each retrieved chunk, call Groq LLM and extract structured facts.
     Returns flat list of fact dicts.
     Skips chunks where LLM returns invalid JSON (logs warning).
     """
-    client = anthropic.Anthropic()
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
     all_facts = []
 
     for chunk in chunks:
         prompt = build_extraction_prompt(chunk["text"])
         try:
-            message = client.messages.create(
+            response = client.chat.completions.create(
                 model=model,
+                messages=[
+                    {"role": "system", "content": prompt["system"]},
+                    {"role": "user",   "content": prompt["user"]},
+                ],
                 max_tokens=1024,
-                system=prompt["system"],
-                messages=[{"role": "user", "content": prompt["user"]}],
+                temperature=0.0,
             )
-            raw_text = message.content[0].text.strip()
-            # Strip markdown fences if LLM accidentally includes them
+            raw_text = response.choices[0].message.content.strip()
+            # Strip markdown fences if model accidentally includes them
             raw_text = raw_text.replace("```json", "").replace("```", "").strip()
             facts = json.loads(raw_text)
             if isinstance(facts, list):
@@ -56,4 +59,4 @@ def save_facts(
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(facts, f, indent=2)
-    print(f"[EXTRACTOR] Saved {len(facts)} facts → {path}")
+    print(f"[EXTRACTOR] Saved {len(facts)} facts -> {path}")
